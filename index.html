@@ -69,6 +69,12 @@ a{color:var(--accent)}
 .side-foot{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:10px}
 .foot-btn{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;width:100%;font-size:14px}
 .foot-btn:hover{background:var(--bg-hover)}
+.account-card{position:relative;width:100%;margin-top:8px}
+.account-trigger{display:flex;align-items:center;gap:10px;width:100%;padding:12px;border-radius:14px;background:var(--bg-hover);text-align:left}
+.account-avatar{display:grid;place-items:center;flex-shrink:0;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#fb9a80,#9e72ed);color:white;font-weight:700}
+.account-copy{min-width:0;flex:1}.account-copy strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.account-copy small{color:var(--muted);font-size:12px}
+.account-popover{position:absolute;bottom:calc(100% + 8px);left:0;width:100%;padding:8px;background:var(--bg);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 36px #0006;z-index:80}
+.account-popover a{text-decoration:none}.account-popover hr{border:0;border-top:1px solid var(--line);margin:6px}
 .status{font-size:12px;color:var(--fg-faint);padding:0 10px 2px;display:flex;gap:7px;align-items:center}
 .status i{width:7px;height:7px;border-radius:50%;background:var(--fg-faint);display:inline-block;flex:none}
 .status.on i{background:var(--ok)}
@@ -238,7 +244,18 @@ details.prov summary .st.on{color:var(--ok)}
     <nav class="chat-list" id="chatList"></nav>
     <div class="side-foot">
       <a class="foot-btn" href="mailto:galaxia.ia.oficial@gmail.com?subject=%5BGalaxia%20IA%20soporte%5D%20Mi%20reporte" style="text-decoration:none" title="galaxia.ia.oficial@gmail.com">Contactar con soporte</a>
-      <a class="foot-btn" href="./cuenta.html" style="text-decoration:none">Mi cuenta</a>
+      <div class="account-card">
+        <div id="accountPopover" class="account-popover" hidden>
+          <a class="foot-btn" href="./cuenta.html">◉ Perfil y créditos</a>
+          <button class="foot-btn" id="accountSettings">⚙ Configuración</button>
+          <a class="foot-btn" href="mailto:galaxia.ia.oficial@gmail.com">? Ayuda y soporte</a>
+          <hr><button class="foot-btn" id="accountLogout">↪ Cerrar sesión</button>
+        </div>
+        <button class="account-trigger" id="accountTrigger" aria-expanded="false" aria-controls="accountPopover" aria-label="Abrir menú de cuenta">
+          <span class="account-avatar" id="accountAvatar" aria-hidden="true">G</span>
+          <span class="account-copy"><strong id="accountName">Mi cuenta</strong><small id="accountPlan">Galaxia IA</small></span><span aria-hidden="true">⌃</span>
+        </button>
+      </div>
       <div class="status" id="status"></div>
       <button class="foot-btn" id="btnSettings" data-icon="sliders"><span>Ajustes y conexiones</span></button>
     </div>
@@ -930,6 +947,13 @@ dlg.addEventListener('click',e=>{
 $('#btnSettingsClose').onclick=()=>dlg.close();
 dlg.addEventListener('mousedown',e=>{if(e.target===dlg)dlg.close();});
 $('#btnSettings').onclick=()=>{closeSide();openSettings();};
+function closeAccountMenu(){$('#accountPopover').hidden=true;$('#accountTrigger').setAttribute('aria-expanded','false');}
+$('#accountTrigger').onclick=()=>{const open=$('#accountPopover').hidden;$('#accountPopover').hidden=!open;$('#accountTrigger').setAttribute('aria-expanded',String(open));};
+document.addEventListener('click',e=>{if(!e.target.closest('.account-card'))closeAccountMenu();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeAccountMenu();}});
+$('#accountSettings').onclick=()=>{closeAccountMenu();closeSide();openSettings();};
+$('#accountLogout').onclick=async()=>{try{const r=await fetch('/api/auth/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!r.ok)throw Error('No se pudo cerrar la sesión.');localStorage.removeItem('galaxia.web.token');localStorage.removeItem('galaxia.web.user');location.href='./cuenta.html';}catch(e){toast(e.message);}};
+(async()=>{try{const r=await fetch('/api/account');if(!r.ok)return;const a=await r.json();if(a.username){$('#accountName').textContent=a.username;$('#accountAvatar').textContent=Array.from(a.username).slice(0,2).join('').toUpperCase();}$('#accountPlan').textContent=a.plan||a.ownerPlan?.name||'Galaxia IA';}catch{}})();
 
 /* ================= Eventos generales ================= */
 function applyTheme(){
