@@ -260,6 +260,15 @@ details.prov summary .st.on{color:var(--ok)}
 
     <footer class="composer-wrap">
       <div class="fine" style="text-align:left"><button class="btn" type="button" id="attachFiles">＋ Fotos y archivos</button> <button class="btn" type="button" id="attachFolder">＋ Carpeta</button><input id="filePicker" type="file" multiple hidden><input id="folderPicker" type="file" webkitdirectory multiple hidden><div id="attachmentList" role="status"></div></div>
+      <button class="btn" type="button" id="shareScreen">Compartir pantalla</button>
+      <dialog id="screenPreview" aria-labelledby="screenTitle" style="max-width:760px;width:90%;padding:20px">
+        <h2 id="screenTitle">Revisa tu captura</h2>
+        <p>La captura ya ha terminado. Al adjuntarla se guardará en tu biblioteca; al enviar el mensaje, Gemini podrá analizarla. Revisa que no aparezcan contraseñas ni información privada.</p>
+        <img id="screenImage" alt="Vista previa de la captura elegida" style="width:100%;max-height:55vh;object-fit:contain">
+        <p>Galaxia verá esta imagen, no podrá mover el ratón ni abrir archivos.</p>
+        <button class="btn" type="button" id="screenCancel">Descartar</button>
+        <button class="btn" type="button" id="screenAttach">Adjuntar captura</button>
+      </dialog>
       <form class="composer" id="form">
         <textarea id="input" rows="1" placeholder="Escribe un mensaje" aria-label="Mensaje"></textarea>
         <button class="send" id="btnSend" type="submit" aria-label="Enviar"></button>
@@ -1029,6 +1038,34 @@ function renderAttachments(){
   for(const item of attachmentDrafts.get(cur().id)||[]){const row=document.createElement('div');row.textContent=(item.kind==='image'?'📷 ':'📄 ')+item.name+' ';const remove=document.createElement('button');remove.type='button';remove.textContent='Quitar';remove.onclick=()=>{attachmentDrafts.set(cur().id,(attachmentDrafts.get(cur().id)||[]).filter(x=>x!==item));renderAttachments();refreshComposer();};row.append(remove);area.append(row);}
 }
 const asDataUrl=blob=>new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(Error('No se pudo leer el archivo.'));r.readAsDataURL(blob);});
+let screenBlob=null,screenUrl=null,screenChat=null;
+function clearScreenPreview(){screenBlob=null;screenChat=null;if(screenUrl)URL.revokeObjectURL(screenUrl);screenUrl=null;$('#screenImage').removeAttribute('src');}
+$('#screenCancel').onclick=()=>$('#screenPreview').close();
+$('#screenPreview').addEventListener('close',clearScreenPreview);
+$('#shareScreen').onclick=async()=>{
+  if(attachmentBusy)return toast('Espera a que terminen los adjuntos.');
+  if(!navigator.mediaDevices?.getDisplayMedia)return toast('Comparte la pantalla desde Chrome, Edge o la aplicación actualizada.');
+  const chatId=cur().id;let stream,video;$('#shareScreen').disabled=true;
+  try{
+    stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false});
+    video=document.createElement('video');video.muted=true;video.srcObject=stream;
+    await Promise.race([video.play(),new Promise((_,reject)=>setTimeout(()=>reject(Error('No se pudo leer la pantalla.')),10000))]);
+    if(!video.videoWidth||!video.videoHeight)throw Error('La pantalla seleccionada no está disponible.');
+    const canvas=document.createElement('canvas'),scale=Math.min(1,1280/Math.max(video.videoWidth,video.videoHeight));
+    canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
+    canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+    screenBlob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+    if(!screenBlob)throw Error('No se pudo crear la captura.');
+    screenChat=chatId;screenUrl=URL.createObjectURL(screenBlob);$('#screenImage').src=screenUrl;$('#screenPreview').showModal();
+  }catch(e){clearScreenPreview();toast(e.name==='NotAllowedError'?'Permiso cancelado. No se ha compartido ninguna captura.':e.message);}
+  finally{stream?.getTracks().forEach(track=>track.stop());if(video)video.srcObject=null;$('#shareScreen').disabled=false;}
+};
+$('#screenAttach').onclick=async()=>{
+  if(!screenBlob)return;
+  if(cur().id!==screenChat){$('#screenPreview').close();return toast('La conversación cambió. Vuelve a capturar la pantalla.');}
+  const file=new File([screenBlob],'captura-pantalla.png',{type:'image/png'});$('#screenPreview').close();
+  await prepareFiles([file]);
+};
 async function prepareFiles(files){
   if(attachmentBusy)return;attachmentBusy=true;refreshComposer();const chatId=cur().id;const draft=attachmentDrafts.get(chatId)||[];attachmentDrafts.set(chatId,draft);let skipped=Math.max(0,files.length-300);
   try{
