@@ -1,1 +1,1 @@
-window.GALAXIA_PUBLIC={"api":"https://competitors-temp-schedules-entrepreneurs.trycloudflare.com"};
+window.GALAXIA_PUBLIC={"api":"https://fax-instead-address-racks.trycloudflare.com"};
